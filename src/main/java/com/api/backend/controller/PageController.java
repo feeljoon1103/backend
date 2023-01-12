@@ -22,7 +22,8 @@ public class PageController {
 
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    public String adminAccess() {
+    public String adminAccess()
+    {
         return "Admin Content.";
     }
 
