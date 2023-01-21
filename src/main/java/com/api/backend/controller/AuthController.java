@@ -21,21 +21,23 @@ import com.api.backend.service.impl.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import springfox.documentation.annotations.ApiIgnore;
+import static org.springframework.data.util.Optionals.ifPresentOrElse;
 
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -89,7 +91,8 @@ public class AuthController {
 
             default:
 
-                role = new Role(ERole.ROLE_USER);;
+                role = new Role(ERole.ROLE_USER);
+                ;
         }
 
         roleService.saveRole(role);
@@ -108,11 +111,12 @@ public class AuthController {
         Set<String> strRoles = signUpRequest.getRoles();
         Set<Role> roles = new HashSet<>();
 
-        if(userService.existsByUsername(username)){
+
+        if (userService.existsByUsername(username)) {
             return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
         }
 
-        if(userService.existsByEmail(email)){
+        if (userService.existsByEmail(email)) {
             return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already taken!"));
         }
 
@@ -130,9 +134,9 @@ public class AuthController {
 
                         Role adminRole = null;
 
-                        if(roleService.findByName(ERole.ROLE_ADMIN).isPresent()){
+                        if (roleService.findByName(ERole.ROLE_ADMIN).isPresent()) {
                             adminRole = new Role(ERole.ROLE_ADMIN);
-                        }else{
+                        } else {
                             adminRole = roleService.findByName(ERole.ROLE_ADMIN)
                                     .orElseThrow(() -> new RoleException("Error: Admin Role is not found."));
                         }
@@ -144,9 +148,9 @@ public class AuthController {
 
                         Role moderatorRole = null;
 
-                        if(roleService.findByName(ERole.ROLE_MODERATOR).isPresent()){
+                        if (roleService.findByName(ERole.ROLE_MODERATOR).isPresent()) {
                             moderatorRole = new Role(ERole.ROLE_MODERATOR);
-                        }else{
+                        } else {
                             moderatorRole = roleService.findByName(ERole.ROLE_MODERATOR)
                                     .orElseThrow(() -> new RoleException("Error: Moderator Role is not found."));
                         }
@@ -159,9 +163,9 @@ public class AuthController {
 
                         Role userRole = null;
 
-                        if(roleService.findByName(ERole.ROLE_USER).isPresent()){
+                        if (roleService.findByName(ERole.ROLE_USER).isPresent()) {
                             userRole = new Role(ERole.ROLE_USER);
-                        }else{
+                        } else {
                             userRole = roleService.findByName(ERole.ROLE_USER)
                                     .orElseThrow(() -> new RoleException("Error: User Role is not found."));
                         }
@@ -171,16 +175,28 @@ public class AuthController {
                 }
 
             });
-        }else{
+        } else {
 
-            Role userRole = null;
-            if(roleService.findByName(ERole.ROLE_USER).isPresent()){
+           /* Role userRole = null;
+            if (roleService.findTop1ByName(ERole.ROLE_USER).isPresent()) {
                 userRole = new Role(ERole.ROLE_USER);
-            }else{
+            } else {
                 userRole = new Role(ERole.ROLE_USER);
             }
 
-            roles.add(userRole);
+            roles.add(userRole);*/
+
+            //roleService.findByName(ERole.ROLE_USER).ifPresent(roles::add, () -> roles.add(new Role(ERole.ROLE_USER)));
+
+            Optional<Role> role = roleService.findTop1ByName(ERole.ROLE_USER);
+            roles.add(role.get());
+            //if (role.equals(ERole.ROLE_USER) || role.equals(ERole.ROLE_MODERATOR) || role.equals(ERole.ROLE_ADMIN)) {
+            if (role.get().getName() == ERole.ROLE_USER || role.get().getName() == ERole.ROLE_MODERATOR || role.get().getName() == ERole.ROLE_ADMIN) {
+                roles.add(role.get());
+
+            } else {
+                roles.add(new Role(ERole.ROLE_USER));
+            }
 
         }
 
@@ -192,7 +208,7 @@ public class AuthController {
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
 
-    @PostMapping("/signin")
+    /*@PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
 
         LOGGER.info("AuthController | authenticateUser is started");
@@ -203,7 +219,7 @@ public class AuthController {
         LOGGER.info("AuthController | authenticateUser | username : " + username);
         LOGGER.info("AuthController | authenticateUser | password : " + password);
 
-        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(username,password);
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(username, password);
 
         LOGGER.info("AuthController | authenticateUser | usernamePasswordAuthenticationToken : " + usernamePasswordAuthenticationToken.toString());
 
@@ -231,9 +247,66 @@ public class AuthController {
         jwtResponse.setRefreshToken(refreshToken.getToken());
         jwtResponse.setRoles(roles);
 
+
+
         LOGGER.info("AuthController | authenticateUser | jwtResponse : " + jwtResponse.toString());
 
-        return ResponseEntity.ok(jwtResponse);
+        //return ResponseEntity.ok(jwtResponse);
+        LOGGER.info("JWT_TOKEN : " + jwt);
+        return ResponseEntity.ok(jwt);
+    }*/
+
+    @PostMapping("/signin")
+    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, HttpServletResponse res) {
+
+        LOGGER.info("AuthController | authenticateUser is started");
+
+        String username = loginRequest.getUsername();
+        String password = loginRequest.getPassword();
+
+        LOGGER.info("AuthController | authenticateUser | username : " + username);
+        LOGGER.info("AuthController | authenticateUser | password : " + password);
+
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(username, password);
+
+        LOGGER.info("AuthController | authenticateUser | usernamePasswordAuthenticationToken : " + usernamePasswordAuthenticationToken.toString());
+
+        Authentication authentication = authenticationManager.authenticate(usernamePasswordAuthenticationToken);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        String jwt = jwtUtils.generateJwtToken(userDetails);
+
+        LOGGER.info("AuthController | authenticateUser | jwt : " + jwt);
+
+        List<String> roles = userDetails.getAuthorities().stream().map(item -> item.getAuthority())
+                .collect(Collectors.toList());
+
+        LOGGER.info("AuthController | authenticateUser | roles : " + roles.toString());
+
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
+        LOGGER.info("AuthController | authenticateUser | refreshToken : " + refreshToken.toString());
+
+        JWTResponse jwtResponse = new JWTResponse();
+        jwtResponse.setEmail(userDetails.getEmail());
+        jwtResponse.setUsername(userDetails.getUsername());
+        jwtResponse.setId(userDetails.getId());
+        jwtResponse.setToken(jwt);
+        jwtResponse.setRefreshToken(refreshToken.getToken());
+        jwtResponse.setRoles(roles);
+
+        Cookie cookie = new Cookie("token", jwt);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+
+        res.addCookie(cookie);
+
+        LOGGER.info("AuthController | authenticateUser | jwtResponse : " + jwtResponse.toString());
+
+        //return ResponseEntity.ok(jwtResponse);
+        LOGGER.info("JWT_TOKEN : " + jwt);
+        //return ResponseEntity.ok(jwt);
+        return new ResponseEntity<>(jwtResponse, HttpStatus.OK);
     }
 
     @PostMapping("/logout")
@@ -250,9 +323,9 @@ public class AuthController {
 
         int deletedValue = refreshTokenService.deleteByUserId(userId);
 
-        if(deletedValue == 1){
+        if (deletedValue == 1) {
             return ResponseEntity.ok(new MessageResponse("Log out successful!"));
-        }else{
+        } else {
             return ResponseEntity.ok(new MessageResponse("You're already logout"));
         }
 
@@ -285,6 +358,19 @@ public class AuthController {
         LOGGER.info("AuthController | refreshtoken | newToken : " + newToken);
 
         return ResponseEntity.ok(new TokenRefreshResponse(newToken, requestRefreshToken));
+
+    }
+
+    @GetMapping("/check")
+    public ResponseEntity check(@CookieValue(value = "token") String token) {
+
+            if (token != null && jwtUtils.validateJwtToken(token)) {
+                return new ResponseEntity<>(1, HttpStatus.OK);
+            } else {
+
+                return new ResponseEntity<>(0, HttpStatus.OK);
+            }
+
 
     }
 }

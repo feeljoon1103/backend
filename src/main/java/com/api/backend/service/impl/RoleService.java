@@ -27,6 +27,11 @@ public class RoleService implements IRoleService {
         return roleRepository.findByName(name);
     }
 
+    @Override
+    public Optional<Role> findTop1ByName(ERole name) {
+        return roleRepository.findTop1ByName(name);
+    }
+
     public void saveRole(Role role){
         roleRepository.save(role);
     }
@@ -34,4 +39,6 @@ public class RoleService implements IRoleService {
     public void saveRoles(Set<Role> roles){
         roleRepository.saveAll(roles);
     }
+
+
 }

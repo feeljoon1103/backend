@@ -13,9 +13,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+
+import static java.lang.System.out;
 
 public class AuthTokenFilter extends OncePerRequestFilter {
 
@@ -59,17 +62,28 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private String parseJwt(HttpServletRequest request) {
 
-        String headerAuth = request.getHeader("Authorization");
+        Cookie cookies[] = request.getCookies();
+        String token = "";
+        for (int i=0; i < cookies.length; i++) {
+            String name = cookies[i].getName();
+            String value = cookies[i].getValue();
+            token = cookies[i].getValue();
+            System.out.println(name + " : " + value + "");
+        }
 
-        LOGGER.info("AuthTokenFilter | parseJwt | headerAuth: {}", headerAuth);
+        String headerAuth = request.getHeader("Authorization");
+        out.println("Header : " + headerAuth);
+
+        LOGGER.info("AuthTokenFilter | parseJwt | headerAuth: {}", token);
 
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
 
             LOGGER.info("AuthTokenFilter | parseJwt | parseJwt: {}", headerAuth.substring(7, headerAuth.length()));
 
-            return headerAuth.substring(7, headerAuth.length());
+            //return headerAuth.substring(7, headerAuth.length());
+            return token;
         }
 
-        return null;
+        return token;
     }
 }
